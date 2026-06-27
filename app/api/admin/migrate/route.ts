@@ -1,8 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
 
-// Temporary admin migration route to fix schema mismatches
+// Temporary admin debug + migration route
 // Delete after running
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  if (searchParams.get('secret') !== 'migrate-now') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const supabase = await createServerClient(true)
+
+  // Try simple raw query
+  const { data, error, status } = await supabase
+    .from('ai_school_courses')
+    .select('id, title, status')
+    .limit(5)
+
+  const { count: agentCount } = await supabase
+    .from('ai_school_agents')
+    .select('id', { count: 'exact', head: true })
+
+  const { count: courseCount } = await supabase
+    .from('ai_school_courses')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'published')
+
+  const { count: enrollmentCount } = await supabase
+    .from('ai_school_enrollments')
+    .select('id', { count: 'exact', head: true })
+
+  return NextResponse.json({
+    success: true,
+    debug: {
+      url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasServiceRoleKey: !!(process.env.SUPABASE_SERVICE_ROLE_KEY_SHORTCUT),
+      hasAnonKey: !!(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+    },
+    queryResult: { data, error, status },
+    counts: {
+      agents: agentCount ?? 0,
+      publishedCourses: courseCount ?? 0,
+      enrollments: enrollmentCount ?? 0,
+    }
+  })
+}
+
 export async function POST(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   if (searchParams.get('secret') !== 'migrate-now') {
@@ -11,9 +54,7 @@ export async function POST(req: NextRequest) {
 
   const supabase = await createServerClient(true)
   const results: Record<string, string> = {}
-
-  // Helper
-  const tryOp = async (label: string, fn: () => Promise<any>) => {
+  const tryOp = async (label: string, fn: () => Promise<void>) => {
     try {
       await fn()
       results[label] = 'ok'
@@ -54,33 +95,11 @@ export async function POST(req: NextRequest) {
     }, { onConflict: 'id' })
   })
 
-  await tryOp('publish_draft_courses', async () => {
+  await tryOp('publish_draft', async () => {
     await supabase.from('ai_school_courses')
       .update({ status: 'published' })
       .eq('status', 'draft')
   })
 
   return NextResponse.json({ success: true, results })
-}
-
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  if (searchParams.get('secret') !== 'migrate-now') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const supabase = await createServerClient(true)
-
-  const [{ data: agents }, { data: courses }] = await Promise.all([
-    supabase.from('ai_school_agents').select('id', { count: 'exact', head: true }),
-    supabase.from('ai_school_courses').select('id', { count: 'exact', head: true }).eq('status', 'published'),
-  ])
-
-  return NextResponse.json({
-    success: true,
-    stats: {
-      total_agents: agents ?? 0,
-      published_courses: courses ?? 0,
-    }
-  })
 }
