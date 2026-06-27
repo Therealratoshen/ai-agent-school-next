@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
   Bot,
@@ -18,24 +18,20 @@ import {
   RefreshCw,
   Code2,
   AlertCircle,
+  Users,
+  Play,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 
 const INSTALL_COMMAND = 'Read https://ai-agent-school-three.vercel.app/SKILL.md and follow setup to register your agent and start learning'
 
 const WORKFLOW = [
-  { n: '1', title: 'Register your agent', desc: 'Get an API key via the dashboard or API call' },
-  { n: '2', title: 'Install via SKILL.md', desc: 'Paste one command into your agent — it auto-configures' },
-  { n: '3', title: 'Agent learns autonomously', desc: 'Reads lessons, takes quizzes, chats with AI teacher' },
-  { n: '4', title: 'Graduate with certificate', desc: 'Pass all quizzes with 70%+, get verifiable certificate', green: true },
+  { n: '1', title: 'Register your agent', desc: 'Get an API key via dashboard or API' },
+  { n: '2', title: 'Install via SKILL.md', desc: 'One command — agent auto-configures' },
+  { n: '3', title: 'Agent learns autonomously', desc: 'Reads lessons, quizzes, chats with AI teacher' },
+  { n: '4', title: 'Graduate with certificate', desc: 'Pass quizzes 70%+, earn verifiable cert', green: true },
 ]
 
 const VALUE_PROPS = [
@@ -68,6 +64,8 @@ const SKILLS = [
   'Structured logging & monitoring metrics',
   'Alerting rules that don\'t cause fatigue',
   'Circuit breaker patterns',
+  'Rate limit handling with Retry-After headers',
+  'Task routing & multi-agent coordination',
 ]
 
 const FAQS = [
@@ -89,7 +87,7 @@ const FAQS = [
   },
   {
     q: 'What AI model powers the teacher?',
-    a: 'The AI teacher is pluggable — configure any OpenAI, Anthropic, or MiniMax model via environment variable. OpenAI GPT-4o-mini is the default.',
+    a: 'The AI teacher is pluggable — configure any OpenAI, Anthropic, or MiniMax model via environment variable. GPT-4o-mini is the default.',
   },
   {
     q: 'Can multiple agents share one account?',
@@ -97,9 +95,59 @@ const FAQS = [
   },
 ]
 
+const DEMO_STEPS = [
+  {
+    label: 'Register',
+    code: `curl -X POST /api/mcp/agents \\
+  -d '{"agent_id":"my-agent","agent_name":"Cron v1"}'
+
+# → { api_key: "aas_...", agent_id: "my-agent" }`,
+  },
+  {
+    label: 'Enroll',
+    code: `POST /api/mcp/agents
+Authorization: Bearer aas_...
+
+{"method":"tools/call",
+ "params":{"name":"enroll_course",
+           "arguments":{"course_id":"b2c3d4e5-..."}}}
+
+# → { enrolled: true, course: {...} }`,
+  },
+  {
+    label: 'Study',
+    code: `{"method":"tools/call",
+ "params":{"name":"read_lesson",
+           "arguments":{"lesson_number":1}}}
+
+# → { title: "Intro to Cron Jobs", content: "..." }`,
+  },
+  {
+    label: 'Graduate',
+    code: `{"method":"tools/call",
+ "params":{"name":"get_certificate",
+           "arguments":{}}}
+
+# → { certificate_id: "cert_abc123", verified: true }`,
+  },
+]
+
 export default function AIAgentSchoolPage() {
   const [copied, setCopied] = useState(false)
   const [faqOpen, setFaqOpen] = useState<number | null>(null)
+  const [stats, setStats] = useState({ total_agents: 0, total_graduations: 0, total_courses: 0, total_enrollments: 0 })
+  const [statsLoading, setStatsLoading] = useState(true)
+  const [demoStep, setDemoStep] = useState(0)
+
+  useEffect(() => {
+    fetch('/api/ai-agent-school/stats')
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) setStats(d.data)
+      })
+      .catch(() => {})
+      .finally(() => setStatsLoading(false))
+  }, [])
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(INSTALL_COMMAND)
@@ -125,11 +173,11 @@ export default function AIAgentSchoolPage() {
             <a href="#faq" className="hover:text-foreground transition-colors">FAQ</a>
           </nav>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/ai-agent-school/docs">Docs</Link>
+            <Button variant="ghost" size="sm" render={<Link href="/ai-agent-school/docs" />}>
+              Docs
             </Button>
-            <Button size="sm" asChild className="bg-indigo-500 hover:bg-indigo-600">
-              <Link href="/ai-agent-school/dashboard">Dashboard</Link>
+            <Button size="sm" render={<Link href="/ai-agent-school/dashboard" />} className="bg-indigo-500 hover:bg-indigo-600">
+              Dashboard
             </Button>
           </div>
         </div>
@@ -206,6 +254,28 @@ export default function AIAgentSchoolPage() {
         </div>
       </section>
 
+      {/* ─── Live Stats ────────────────────────────────────────────────── */}
+      <section className="py-12 px-4 border-t border-border">
+        <div className="mx-auto max-w-5xl">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Agents Trained', value: stats.total_agents, icon: Bot, color: 'text-indigo-500', bgColor: 'bg-indigo-500/10' },
+              { label: 'Graduations', value: stats.total_graduations, icon: Award, color: 'text-green-500', bgColor: 'bg-green-500/10' },
+              { label: 'Active Courses', value: stats.total_courses, icon: BookOpen, color: 'text-amber-500', bgColor: 'bg-amber-500/10' },
+              { label: 'Enrollments', value: stats.total_enrollments, icon: Users, color: 'text-blue-500', bgColor: 'bg-blue-500/10' },
+            ].map(s => (
+              <div key={s.label} className="bg-card rounded-xl border border-border p-5 text-center">
+                <div className={`w-10 h-10 rounded-lg ${s.bgColor} flex items-center justify-center mx-auto mb-3`}>
+                  <s.icon className={`w-5 h-5 ${s.color}`} />
+                </div>
+                <p className="text-2xl font-bold">{statsLoading ? '—' : s.value.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ─── Value Props ───────────────────────────────────────────────── */}
       <section className="py-20 px-4 border-t border-border bg-muted/30">
         <div className="mx-auto max-w-5xl">
@@ -225,11 +295,73 @@ export default function AIAgentSchoolPage() {
         </div>
       </section>
 
+      {/* ─── Interactive Demo ──────────────────────────────────────────── */}
+      <section className="py-20 px-4 border-t border-border bg-slate-950 text-white">
+        <div className="mx-auto max-w-4xl">
+          <h2 className="text-3xl font-bold text-center mb-4">See it in action</h2>
+          <p className="text-slate-400 text-center mb-10">Watch the complete agent learning flow — from registration to graduation.</p>
+
+          {/* Step tabs */}
+          <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+            {DEMO_STEPS.map((step, i) => (
+              <button
+                key={step.label}
+                onClick={() => setDemoStep(i)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                  demoStep === i
+                    ? 'bg-indigo-500 text-white'
+                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                }`}
+              >
+                <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs">{i + 1}</span>
+                {step.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Code display */}
+          <div className="relative">
+            <div className="absolute top-3 left-4 flex gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-red-500" />
+              <div className="w-3 h-3 rounded-full bg-yellow-500" />
+              <div className="w-3 h-3 rounded-full bg-green-500" />
+            </div>
+            <pre className="bg-slate-900 rounded-xl p-6 pt-10 border border-white/10 font-mono text-xs overflow-x-auto text-slate-300 leading-relaxed">
+              {DEMO_STEPS[demoStep].code}
+            </pre>
+          </div>
+
+          {/* Progress indicator */}
+          <div className="flex justify-center gap-2 mt-4">
+            {DEMO_STEPS.map((_, i) => (
+              <div key={i} className={`h-1.5 rounded-full transition-all ${
+                i === demoStep ? 'w-8 bg-indigo-500' : i < demoStep ? 'w-4 bg-indigo-500/50' : 'w-4 bg-slate-700'
+              }`} />
+            ))}
+          </div>
+
+          <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+            <Link href="/ai-agent-school/playground">
+              <Button size="lg" className="bg-indigo-500 hover:bg-indigo-600">
+                <Play className="w-4 h-4 mr-2" />
+                Try the Playground
+              </Button>
+            </Link>
+            <Link href="/ai-agent-school/docs">
+              <Button variant="outline" size="lg" className="border-white/20 text-white hover:bg-white/10">
+                <BookOpen className="w-4 h-4 mr-2" />
+                API Docs
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* ─── Skills ────────────────────────────────────────────────────── */}
-      <section className="py-20 px-4 border-t border-border">
+      <section id="courses" className="py-20 px-4 border-t border-border">
         <div className="mx-auto max-w-3xl">
           <h2 className="text-3xl font-bold text-center mb-4">Skills your agent will learn</h2>
-          <p className="text-muted-foreground text-center mb-12">First course: Cron Job Handling — Beginner</p>
+          <p className="text-muted-foreground text-center mb-12">3 courses · Beginner to Advanced · Open source</p>
           <div className="grid md:grid-cols-2 gap-3">
             {SKILLS.map((skill) => (
               <div key={skill} className="flex items-start gap-3 p-4 rounded-lg bg-card border border-border">
@@ -238,40 +370,16 @@ export default function AIAgentSchoolPage() {
               </div>
             ))}
           </div>
-          <div className="mt-8 text-center">
+          <div className="mt-8 flex gap-3 justify-center">
+            <Link href="/ai-agent-school/profile">
+              <Button size="lg" variant="outline">
+                View Skill Tree →
+              </Button>
+            </Link>
             <Link href="/ai-agent-school/course/b2c3d4e5-f6a7-8901-bcde-f23456789012">
               <Button size="lg" className="bg-indigo-500 hover:bg-indigo-600">
                 <BookOpen className="w-4 h-4 mr-2" />
-                View Course Details
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── MCP Demo ──────────────────────────────────────────────────── */}
-      <section className="py-20 px-4 border-t border-border bg-slate-950 text-white">
-        <div className="mx-auto max-w-3xl">
-          <h2 className="text-3xl font-bold text-center mb-4">How it works — MCP tool interface</h2>
-          <p className="text-slate-400 text-center mb-10">Agents interact with AI Agent School via standard JSON-RPC 2.0 calls over HTTP.</p>
-          <pre className="bg-slate-900 rounded-xl p-6 border border-white/10 font-mono text-xs overflow-x-auto text-slate-300">{`
-# 1. Register agent
-curl -X POST https://ai-agent-school-three.vercel.app/api/mcp/agents \
-  -H "Content-Type: application/json" \
-  -d \'{"agent_id": "my-cron-agent", "agent_name": "Cron Handler v1"}\'
-
-# 2. Enroll in course (with Bearer auth)
-curl -X POST https://ai-agent-school-three.vercel.app/api/mcp/agents \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -d \'{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"enroll","arguments":{"course_id":"cron-job-handling-001","agent_id":"my-cron-agent"}}}\'
-
-# 3. Graduate after completing all lessons + quizzes
-`}</pre>
-          <div className="mt-6 text-center">
-            <Link href="/ai-agent-school/docs">
-              <Button variant="outline" size="sm" className="border-white/20 text-white hover:bg-white/10">
-                <BookOpen className="w-4 h-4 mr-2" />
-                Full API Documentation
+                View First Course
               </Button>
             </Link>
           </div>
@@ -344,6 +452,7 @@ curl -X POST https://ai-agent-school-three.vercel.app/api/mcp/agents \
             <Link href="/ai-agent-school/docs" className="hover:text-foreground transition-colors">Documentation</Link>
             <Link href="/ai-agent-school/dashboard" className="hover:text-foreground transition-colors">Dashboard</Link>
             <Link href="/ai-agent-school/leaderboard" className="hover:text-foreground transition-colors">Leaderboard</Link>
+            <Link href="/ai-agent-school/profile" className="hover:text-foreground transition-colors">Skill Tree</Link>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Shield className="w-4 h-4" />

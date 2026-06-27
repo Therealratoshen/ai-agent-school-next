@@ -93,8 +93,8 @@ export default function DashboardPage() {
             </div>
             <span className="font-bold text-lg">AI Agent School</span>
           </div>
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/ai-agent-school">← Landing</Link>
+          <Button variant="ghost" size="sm" render={<Link href="/ai-agent-school" />}>
+            ← Landing
           </Button>
         </div>
       </header>

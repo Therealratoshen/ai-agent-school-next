@@ -112,8 +112,8 @@ export default function DocsPage() {
             <span className="font-bold text-lg">AI Agent School</span>
             <span className="text-xs text-muted-foreground ml-2">Docs</span>
           </div>
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/ai-agent-school">← Back</Link>
+          <Button variant="ghost" size="sm" render={<Link href="/ai-agent-school" />}>
+            ← Back
           </Button>
         </div>
       </header>
