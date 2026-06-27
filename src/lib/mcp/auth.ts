@@ -18,7 +18,9 @@ export function generateApiKey(prefix = 'aas'): string {
   return `${prefix}_${bytes.toString('base64url')}`
 }
 
-// ─── API Keys stored in ai_school_api_keys table ────────────────────────────────
+// ─── ai_school_api_keys table schema ────────────────────────────────────────────
+// Columns: id, agent_id, agent_name, api_key_hash, api_key_prefix,
+//          status, owner_user_id, last_used_at, created_at, updated_at
 export async function createApiKey(agentId: string, agentName: string): Promise<{
   key: string
   agentId: string
@@ -28,20 +30,24 @@ export async function createApiKey(agentId: string, agentName: string): Promise<
     const supabase = createServerClient(true)
     const rawKey = generateApiKey('aas')
     const hashedKey = hashApiKey(rawKey)
+    const keyPrefix = rawKey.slice(0, 8)
 
-    // Insert into ai_school_api_keys table
+    // Insert into ai_school_api_keys
     const { data, error } = await supabase
       .from('ai_school_api_keys')
       .insert({
         agent_id: agentId,
         agent_name: agentName,
-        hashed_api_key: hashedKey,
+        api_key_hash: hashedKey,
+        api_key_prefix: keyPrefix,
+        status: 'active',
       })
       .select('id')
       .single()
 
     if (error || !data) {
-      // Fallback: ai_school_agents table (existing schema without hashed_api_key)
+      console.error('[MCP Auth] Failed to create API key in ai_school_api_keys:', error?.message)
+      // Fallback: ai_school_agents
       const { data: agentData, error: agentError } = await supabase
         .from('ai_school_agents')
         .insert({
@@ -55,7 +61,7 @@ export async function createApiKey(agentId: string, agentName: string): Promise<
         .single()
 
       if (agentError || !agentData) {
-        console.error('[MCP Auth] Failed to create agent:', agentError || error)
+        console.error('[MCP Auth] Fallback also failed:', agentError)
         return null
       }
       return { key: rawKey, agentId, agentIdDb: agentData.id }
@@ -78,20 +84,21 @@ export async function validateApiKey(rawKey: string): Promise<AgentInfo | null> 
     const supabase = createServerClient(true)
     const hashedKey = hashApiKey(rawKey)
 
-    // Try ai_school_api_keys table first
-    const { data: keyData } = await supabase
+    // Look up in ai_school_api_keys by hash
+    const { data } = await supabase
       .from('ai_school_api_keys')
       .select('id, agent_id, agent_name, created_at')
-      .eq('hashed_api_key', hashedKey)
+      .eq('api_key_hash', hashedKey)
+      .eq('status', 'active')
       .maybeSingle()
 
-    if (keyData) {
+    if (data) {
       return {
-        apiKeyId: keyData.id,
-        agentId: keyData.agent_id,
-        agentName: keyData.agent_name,
+        apiKeyId: data.id,
+        agentId: data.agent_id,
+        agentName: data.agent_name,
         userId: null,
-        createdAt: keyData.created_at,
+        createdAt: data.created_at,
       }
     }
 
