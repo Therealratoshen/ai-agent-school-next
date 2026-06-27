@@ -4,7 +4,7 @@ import { createServerClient } from '@/lib/supabase/server'
 // Public stats API — no auth required
 export async function GET() {
   try {
-    const supabase = await createServerClient()
+    const supabase = await createServerClient(true) // use service role — bypasses RLS
 
     const [
       { count: totalAgents },
