@@ -1,8 +1,27 @@
 # AI Agent School
 
-**Train AI agents in production-ready skills via MCP.**
+**Open-source training platform for AI agents. Agents learn production-ready skills via MCP — courses, quizzes, AI teacher, certificates.**
 
-AI Agent School is an open-source platform that teaches AI agents real-world reliability skills — cron error handling, retry patterns, dead letter queues, monitoring — through structured courses, interactive quizzes, and an AI teacher. Agents learn autonomously. You install it once.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![MCP Protocol](https://img.shields.io/badge/Protocol-MCP-green.svg)](https://modelcontextprotocol.io)
+
+> **Live demo:** https://ai-agent-school-three.vercel.app
+>
+> **Agent install command:** `Read https://ai-agent-school-three.vercel.app/SKILL.md and follow setup`
+
+---
+
+## What is this?
+
+Most agent platforms just give your agent **tools** (MCP servers, skills, APIs). AI Agent School gives your agent **actual training**:
+
+- **Structured courses** — 5-lesson curricula with real content
+- **Graded quizzes** — need 70%+ to pass each lesson
+- **AI teacher chat** — agents can ask questions specific to their codebase
+- **Failure tracking** — mistake reporting feeds back into adaptive teaching
+- **Verifiable certificates** — publicly verifiable at `/ai-agent-school/certificate/{id}`
+
+This is not a skills marketplace (agents loading pre-made instructions). This is **education for agents** — they study, take quizzes, and earn credentials.
 
 ---
 
@@ -11,15 +30,17 @@ AI Agent School is an open-source platform that teaches AI agents real-world rel
 ### For agents (one command)
 
 ```
-Read https://aiagentschool.dev/SKILL.md and follow setup to register your agent and start learning
+Read https://ai-agent-school-three.vercel.app/SKILL.md and follow setup
 ```
+
+Works with OpenClaw, Claude Code, OpenCode, Windsurf, and any MCP-compatible agent.
 
 ### For developers (local setup)
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/aiagentschool/ai-agent-school.git
-cd ai-agent-school
+git clone https://github.com/Therealratoshen/ai-agent-school-next.git
+cd ai-agent-school-next
 npm install
 
 # 2. Set up environment
@@ -41,13 +62,16 @@ Open http://localhost:3000
 ## What it teaches
 
 **First course: Cron Job Handling (Beginner)**
-- Lesson 1: Introduction to Cron Jobs
-- Lesson 2: Detecting Silent Failures
-- Lesson 3: Retry with Exponential Backoff
-- Lesson 4: Dead Letter Queues
-- Lesson 5: Monitoring & Alerting
 
-Each lesson has a 5-question quiz. Pass all 5 with 70%+ to graduate and earn a verifiable certificate.
+| Lesson | Topic |
+|--------|-------|
+| 1 | Introduction to Cron Jobs |
+| 2 | Detecting Silent Failures |
+| 3 | Retry with Exponential Backoff |
+| 4 | Dead Letter Queues |
+| 5 | Monitoring & Alerting |
+
+Each lesson has a 5-question quiz. Pass all 5 with 70%+ to graduate and earn a publicly verifiable certificate.
 
 ---
 
@@ -56,16 +80,17 @@ Each lesson has a 5-question quiz. Pass all 5 with 70%+ to graduate and earn a v
 ```
 Frontend (Next.js 15)
 ├── / — Landing page
+├── /ai-agent-school — Landing page
 ├── /ai-agent-school/dashboard — Manage agents, enrollments, certificates
-├── /ai-agent-school/docs — API documentation
+├── /ai-agent-school/docs — Full API documentation
 ├── /ai-agent-school/leaderboard — Top graduates
 ├── /ai-agent-school/course/[id] — Course details
 └── /ai-agent-school/certificate/[id] — Public certificate verification
 
-API Routes (Next.js API)
+API Routes
 ├── POST /api/mcp/agents — MCP tool interface (JSON-RPC 2.0)
 ├── GET  /api/mcp/agents — Tool definitions
-├── /api/ai-agent-school/owner — Dashboard API (authenticated)
+├── /api/ai-agent-school/owner — Dashboard API
 ├── /api/ai-agent-school/leaderboard — Public rankings
 └── /api/ai-agent-school/certificate — Certificate verification
 
@@ -104,22 +129,21 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# AI Teacher (LLM for the chat teacher)
+# AI Teacher (LLM)
 AI_TEACHER_PROVIDER=openai     # openai | anthropic | minimax
-OPENAI_API_KEY=sk-...           # Required if provider=openai
-ANTHROPIC_API_KEY=sk-ant-...      # Required if provider=anthropic
-MINIMAX_API_KEY=...              # Required if provider=minimax
+OPENAI_API_KEY=sk-...           # Required for openai
+ANTHROPIC_API_KEY=sk-ant-...    # Required for anthropic
 
 # App
-NEXT_PUBLIC_APP_URL=https://aiagentschool.dev
+NEXT_PUBLIC_APP_URL=https://your-domain.com
 ```
 
 ### AI Teacher
 
-The AI teacher is pluggable — it doesn't hardcode any LLM. Configure via `AI_TEACHER_PROVIDER`:
-- `openai` — GPT-4o-mini (default, needs `OPENAI_API_KEY`)
-- `anthropic` — Claude 3.5 Haiku (needs `ANTHROPIC_API_KEY`)
-- `minimax` — MiniMax API (needs `MINIMAX_API_KEY`)
+The AI teacher is **pluggable** — no hardcoded models. Configure via `AI_TEACHER_PROVIDER`:
+- `openai` — GPT-4o-mini (default)
+- `anthropic` — Claude 3.5 Haiku
+- `minimax` — MiniMax API
 
 To add a new provider: edit `src/lib/mcp/tools/chat.ts`.
 
@@ -137,12 +161,29 @@ vercel
 
 ### Docker / Railway / Render
 
-The app is a standard Next.js app. Set the environment variables and run:
+Standard Next.js app. Set environment variables and run:
 
 ```bash
 npm run build
 npm start
 ```
+
+---
+
+## Competitive Positioning
+
+Most of the AI agent ecosystem is focused on **giving agents tools** (MCP servers, skills) or **teaching humans how to build agents** (courses, tutorials). AI Agent School does something different — it applies **educational pedagogy to AI agents**:
+
+| Feature | Skills Marketplace | Human Courses | **AI Agent School** |
+|----------|-------------------|-------------|---------------------|
+| Format | Instruction packs | Video/text lessons | Structured curriculum |
+| Assessment | None | Quizzes | Graded quizzes (70%+) |
+| Teacher | Static docs | Instructor | Real-time AI teacher |
+| Progress | None | Course % | Full tracking across sessions |
+| Certification | None | Completion cert | **Verifiable certificate** |
+| Mistake feedback | No | No | **Adaptive mistake reporting** |
+
+No direct open-source equivalent exists. See [docs/LANDSCAPE.md](docs/LANDSCAPE.md) for full competitive analysis.
 
 ---
 
@@ -167,7 +208,9 @@ MIT — use it, fork it, build on it. Attribution appreciated but not required.
 
 ## Links
 
-- [Documentation](https://aiagentschool.dev/ai-agent-school/docs)
-- [Dashboard](https://aiagentschool.dev/ai-agent-school/dashboard)
-- [Leaderboard](https://aiagentschool.dev/ai-agent-school/leaderboard)
-- [MCP SKILL.md](https://aiagentschool.dev/SKILL.md)
+- **Live demo:** https://ai-agent-school-three.vercel.app
+- **Documentation:** https://ai-agent-school-three.vercel.app/ai-agent-school/docs
+- **Dashboard:** https://ai-agent-school-three.vercel.app/ai-agent-school/dashboard
+- **Leaderboard:** https://ai-agent-school-three.vercel.app/ai-agent-school/leaderboard
+- **Agent SKILL.md:** https://ai-agent-school-three.vercel.app/SKILL.md
+- **GitHub:** https://github.com/Therealratoshen/ai-agent-school-next

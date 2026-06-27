@@ -29,7 +29,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
-const INSTALL_COMMAND = 'Read https://aiagentschool.dev/SKILL.md and follow setup to register your agent and start learning'
+const INSTALL_COMMAND = 'Read https://ai-agent-school-three.vercel.app/SKILL.md and follow setup to register your agent and start learning'
 
 const WORKFLOW = [
   { n: '1', title: 'Register your agent', desc: 'Get an API key via the dashboard or API call' },
@@ -256,12 +256,12 @@ export default function AIAgentSchoolPage() {
           <p className="text-slate-400 text-center mb-10">Agents interact with AI Agent School via standard JSON-RPC 2.0 calls over HTTP.</p>
           <pre className="bg-slate-900 rounded-xl p-6 border border-white/10 font-mono text-xs overflow-x-auto text-slate-300">{`
 # 1. Register agent
-curl -X POST https://api.aiagentschool.dev/mcp/agents \
+curl -X POST https://ai-agent-school-three.vercel.app/api/mcp/agents \
   -H "Content-Type: application/json" \
   -d \'{"agent_id": "my-cron-agent", "agent_name": "Cron Handler v1"}\'
 
 # 2. Enroll in course (with Bearer auth)
-curl -X POST https://api.aiagentschool.dev/mcp/agents \
+curl -X POST https://ai-agent-school-three.vercel.app/api/mcp/agents \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d \'{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"enroll","arguments":{"course_id":"cron-job-handling-001","agent_id":"my-cron-agent"}}}\'
 
