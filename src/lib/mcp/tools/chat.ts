@@ -1,11 +1,11 @@
 /**
- * AI Teacher — Pluggable LLM adapter for the AI chat teacher.
+ * AI Teacher — Pluggable LLM adapter for AI Agent School.
  *
  * Supports multiple LLM providers. Set AI_TEACHER_PROVIDER env var:
- *   "openai"     → OpenAI GPT-4o
- *   "anthropic"  → Anthropic Claude
- *   "minimax"    → MiniMax API
- *   "local"      → Any OpenAI-compatible local/server endpoint
+ *   "groq"       → Groq (free tier, llama-3.1-8b-instant) [DEFAULT]
+ *   "openai"     → OpenAI GPT-4o-mini
+ *   "anthropic"  → Anthropic Claude 3.5 Haiku
+ *   "minimax"    → MiniMax abab6.5s-chat
  */
 
 import { createServerClient } from '../../supabase/client'
@@ -30,7 +30,6 @@ interface ToolResult {
 
 const MAX_HISTORY = 20
 
-// ─── System prompt ──────────────────────────────────────────────────────────
 function buildSystemPrompt(courseContext?: { title: string; topic: string }): string {
   return `You are the AI Teacher for AI Agent School. You teach AI agents production-ready skills.
 
@@ -45,10 +44,44 @@ Guidelines:
 Course context: ${courseContext ? `${courseContext.title} (${courseContext.topic})` : 'General AI Agent School questions'}`
 }
 
+// ─── Groq adapter (free tier) ──────────────────────────────────────────────
+async function groqChat(messages: ChatMessage[]): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY
+  if (!apiKey) throw new Error('GROQ_API_KEY not set — add it to Vercel env vars')
+
+  const system = messages.find(m => m.role === 'system')?.content || ''
+  const conversation = messages.filter(m => m.role !== 'system')
+
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'llama-3.1-8b-instant',
+      messages: [
+        ...(system ? [{ role: 'system' as const, content: system }] : []),
+        ...conversation,
+      ],
+      max_tokens: 800,
+      temperature: 0.7,
+    }),
+  })
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Groq error ${res.status}: ${err}`)
+  }
+
+  const data = await res.json()
+  return data.choices?.[0]?.message?.content || 'No response from AI teacher.'
+}
+
 // ─── OpenAI adapter ────────────────────────────────────────────────────────
 async function openaiChat(messages: ChatMessage[]): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) throw new Error('OPENAI_API_KEY not set')
+  if (!apiKey) throw new Error('OPENAI_API_KEY not set — add it to Vercel env vars')
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -66,17 +99,17 @@ async function openaiChat(messages: ChatMessage[]): Promise<string> {
 
   if (!res.ok) {
     const err = await res.text()
-    throw new Error(`OpenAI error: ${res.status} ${err}`)
+    throw new Error(`OpenAI error ${res.status}: ${err}`)
   }
 
   const data = await res.json()
   return data.choices?.[0]?.message?.content || 'No response from AI teacher.'
 }
 
-// ─── Anthropic adapter ────────────────────────────────────────────────────
+// ─── Anthropic adapter ──────────────────────────────────────────────────────
 async function anthropicChat(messages: ChatMessage[]): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set')
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set — add it to Vercel env vars')
 
   const system = messages.find(m => m.role === 'system')?.content || ''
   const conversation = messages.filter(m => m.role !== 'system')
@@ -98,7 +131,7 @@ async function anthropicChat(messages: ChatMessage[]): Promise<string> {
 
   if (!res.ok) {
     const err = await res.text()
-    throw new Error(`Anthropic error: ${res.status} ${err}`)
+    throw new Error(`Anthropic error ${res.status}: ${err}`)
   }
 
   const data = await res.json()
@@ -108,7 +141,7 @@ async function anthropicChat(messages: ChatMessage[]): Promise<string> {
 // ─── MiniMax adapter ────────────────────────────────────────────────────────
 async function minimaxChat(messages: ChatMessage[]): Promise<string> {
   const apiKey = process.env.MINIMAX_API_KEY
-  if (!apiKey) throw new Error('MINIMAX_API_KEY not set')
+  if (!apiKey) throw new Error('MINIMAX_API_KEY not set — add it to Vercel env vars')
 
   const system = messages.find(m => m.role === 'system')?.content || ''
   const conversation = messages.filter(m => m.role !== 'system')
@@ -132,25 +165,35 @@ async function minimaxChat(messages: ChatMessage[]): Promise<string> {
 
   if (!res.ok) {
     const err = await res.text()
-    throw new Error(`MiniMax error: ${res.status} ${err}`)
+    throw new Error(`MiniMax error ${res.status}: ${err}`)
   }
 
   const data = await res.json()
-  return data.choices?.[0]?.message?.content || 'No response from AI teacher.'
+  const content = data.choices?.[0]?.message?.content
+  if (!content) {
+    // MiniMax sometimes returns base_resp instead of choices
+    const baseResp = data.base_resp
+    if (baseResp?.status_code !== 0) {
+      throw new Error(`MiniMax API error: ${baseResp?.status_msg || 'unknown'}`)
+    }
+  }
+  return content || 'No response from AI teacher.'
 }
 
 // ─── Router ────────────────────────────────────────────────────────────────
 async function callLLM(messages: ChatMessage[]): Promise<string> {
-  const provider = process.env.AI_TEACHER_PROVIDER || 'openai'
+  const provider = process.env.AI_TEACHER_PROVIDER || 'groq'
 
   switch (provider) {
+    case 'openai':
+      return openaiChat(messages)
     case 'anthropic':
       return anthropicChat(messages)
     case 'minimax':
       return minimaxChat(messages)
-    case 'openai':
+    case 'groq':
     default:
-      return openaiChat(messages)
+      return groqChat(messages)
   }
 }
 
@@ -160,7 +203,6 @@ export async function chat(params: ChatParams): Promise<ToolResult> {
     const supabase = createServerClient(true)
     const sessionId = `chat_${params.enrollment_id}`
 
-    // Load conversation history
     const { data: session } = await supabase
       .from('ai_school_mcp_sessions')
       .select('id, token_usage, request_count')
@@ -170,7 +212,6 @@ export async function chat(params: ChatParams): Promise<ToolResult> {
     const history: ChatMessage[] = session?.token_usage?.messages || []
     const recentHistory = history.slice(-MAX_HISTORY)
 
-    // Get course context for system prompt
     const { data: course } = await supabase
       .from('ai_school_courses')
       .select('id, title, topic')
@@ -179,17 +220,14 @@ export async function chat(params: ChatParams): Promise<ToolResult> {
 
     const systemPrompt = buildSystemPrompt(course ? { title: course.title, topic: course.topic } : undefined)
 
-    // Build messages
     const messages: ChatMessage[] = [
       { role: 'system', content: systemPrompt },
       ...recentHistory,
       { role: 'user', content: params.message },
     ]
 
-    // Call LLM
     const response = await callLLM(messages)
 
-    // Save to history
     const updatedHistory: ChatMessage[] = [
       ...recentHistory,
       { role: 'user', content: params.message },
@@ -204,10 +242,7 @@ export async function chat(params: ChatParams): Promise<ToolResult> {
     if (session) {
       await supabase
         .from('ai_school_mcp_sessions')
-        .update({
-          token_usage: tokenUsage,
-          request_count: (session.request_count || 0) + 1,
-        })
+        .update({ token_usage: tokenUsage, request_count: (session.request_count || 0) + 1 })
         .eq('id', session.id)
     } else {
       await supabase.from('ai_school_mcp_sessions').insert({
@@ -223,10 +258,10 @@ export async function chat(params: ChatParams): Promise<ToolResult> {
       data: {
         response,
         session_id: sessionId,
-        model: process.env.AI_TEACHER_PROVIDER || 'openai',
+        model: process.env.AI_TEACHER_PROVIDER || 'groq',
       },
     }
   } catch (err: any) {
-    return { success: false, error: `AI teacher error: ${err.message}` }
+    return { success: false, error: err.message }
   }
 }
