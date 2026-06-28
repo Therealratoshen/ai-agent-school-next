@@ -120,12 +120,13 @@ async function minimaxChat(messages: ChatMessage[]): Promise<string> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'MiniMax-Text-01',
+      model: 'abab6.5s-chat',
       messages: [
         { role: 'system', content: system },
         ...conversation.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
       ],
       max_tokens: 800,
+      temperature: 0.7,
     }),
   })
 
