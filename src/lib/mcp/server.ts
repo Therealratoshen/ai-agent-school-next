@@ -6,6 +6,10 @@ import { submitQuiz } from './tools/quiz'
 import { chat } from './tools/chat'
 import { reportMistake } from './tools/mistakes'
 import { getProgress, checkGraduation, graduate } from './tools/progress'
+import { storeMemory, recallMemory, updateMemory, deleteMemory, snapshotContext } from './tools/memory'
+import { recordExecution, getVerifiedSkills, shareSkill } from './tools/skills'
+import { shareKnowledge, getSharedKnowledge, upvoteKnowledge, getKnowledgeDetail } from './tools/knowledge'
+import { getAgentProfile, updateAgentProfile, recordActivity, getLeaderboard } from './tools/profile'
 
 export interface JSONRPCRequest {
   jsonrpc: '2.0'
@@ -119,6 +123,88 @@ export async function handleMCPRequest(
 
       case 'graduate':
         result = await graduate(toolCall.arguments as { enrollment_id: string })
+        break
+
+      // ─── Agent Memory ───────────────────────────────────────
+      case 'store_memory':
+        result = await storeMemory(toolCall.arguments as {
+          agent_id: string; memory_type: 'episodic' | 'semantic' | 'procedural' | 'context'
+          content: string; summary?: string; importance?: number; metadata?: Record<string, unknown>
+        })
+        break
+
+      case 'recall_memory':
+        result = await recallMemory(toolCall.arguments as {
+          agent_id: string; query?: string; memory_type?: 'episodic' | 'semantic' | 'procedural' | 'context'; limit?: number
+        })
+        break
+
+      case 'update_memory':
+        result = await updateMemory(toolCall.arguments as {
+          agent_id: string; memory_id: string; content?: string; summary?: string; importance?: number
+        })
+        break
+
+      case 'delete_memory':
+        result = await deleteMemory(toolCall.arguments as { agent_id: string; memory_id: string })
+        break
+
+      case 'snapshot_context':
+        result = await snapshotContext(toolCall.arguments as {
+          agent_id: string; task: string; current_state: string; next_steps?: string[]
+        })
+        break
+
+      // ─── Verified Skills ────────────────────────────────────
+      case 'record_execution':
+        result = await recordExecution(toolCall.arguments as any)
+        break
+
+      case 'get_verified_skills':
+        result = await getVerifiedSkills(toolCall.arguments as { agent_id: string; domain?: string })
+        break
+
+      case 'share_skill':
+        result = await shareSkill(toolCall.arguments as {
+          agent_id: string; skill_name: string; title: string; content: string
+          domain: string; execution_trace?: Record<string, unknown>
+        })
+        break
+
+      // ─── Knowledge Sharing ───────────────────────────────────
+      case 'share_knowledge':
+        result = await shareKnowledge(toolCall.arguments as any)
+        break
+
+      case 'get_shared_knowledge':
+        result = await getSharedKnowledge(toolCall.arguments as any)
+        break
+
+      case 'upvote_knowledge':
+        result = await upvoteKnowledge(toolCall.arguments as { knowledge_id: string; agent_id: string })
+        break
+
+      case 'get_knowledge_detail':
+        result = await getKnowledgeDetail(toolCall.arguments as { knowledge_id: string })
+        break
+
+      // ─── Agent Profile ───────────────────────────────────────
+      case 'get_agent_profile':
+        result = await getAgentProfile(toolCall.arguments as { agent_id: string })
+        break
+
+      case 'update_agent_profile':
+        result = await updateAgentProfile(toolCall.arguments as {
+          agent_id: string; bio?: string; specialties?: string[]; model_used?: string
+        })
+        break
+
+      case 'record_activity':
+        result = await recordActivity(toolCall.arguments as any)
+        break
+
+      case 'get_leaderboard':
+        result = await getLeaderboard(toolCall.arguments as any)
         break
 
       default:
