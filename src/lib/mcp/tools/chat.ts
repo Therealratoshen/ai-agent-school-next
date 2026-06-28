@@ -2,10 +2,9 @@
  * AI Teacher — Pluggable LLM adapter for AI Agent School.
  *
  * Provider priority (set AI_TEACHER_PROVIDER env var):
- *   "groq"       → Groq llama-3.1-8b-instant [FREE, RECOMMENDED]
+ *   "minimax"    → MiniMax abab6.5s-chat  [PRIMARY]
  *   "openai"     → OpenAI GPT-4o-mini
  *   "anthropic"  → Anthropic Claude 3.5 Haiku
- *   "minimax"    → MiniMax abab6.5s-chat
  *
  * Auto-fallback: if primary provider fails, tries other available keys.
  */
@@ -46,25 +45,25 @@ Guidelines:
 Course context: ${courseContext ? `${courseContext.title} (${courseContext.topic})` : 'General AI Agent School questions'}`
 }
 
-// ─── Groq adapter (free tier, llama-3.1-8b-instant) ──────────────────────
-async function groqChat(messages: ChatMessage[]): Promise<string> {
-  const apiKey = process.env.GROQ_API_KEY
-  if (!apiKey) throw new Error('GROQ_API_KEY_NOT_SET')
+// ─── MiniMax adapter ────────────────────────────────────────────────────────
+async function minimaxChat(messages: ChatMessage[]): Promise<string> {
+  const apiKey = process.env.MINIMAX_API_KEY
+  if (!apiKey) throw new Error('MINIMAX_API_KEY_NOT_SET')
 
   const system = messages.find(m => m.role === 'system')?.content || ''
   const conversation = messages.filter(m => m.role !== 'system')
 
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+  const res = await fetch('https://api.minimax.chat/v1/text/chatcompletion_v2', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'llama-3.1-8b-instant',
+      model: 'abab6.5s-chat',
       messages: [
-        ...(system ? [{ role: 'system' as const, content: system }] : []),
-        ...conversation,
+        { role: 'system', content: system },
+        ...conversation.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
       ],
       max_tokens: 800,
       temperature: 0.7,
@@ -73,11 +72,19 @@ async function groqChat(messages: ChatMessage[]): Promise<string> {
 
   if (!res.ok) {
     const err = await res.text()
-    throw new Error(`GROQ_FAILED:${res.status}:${err}`)
+    throw new Error(`MINIMAX_FAILED:${res.status}:${err}`)
   }
 
   const data = await res.json()
-  return data.choices?.[0]?.message?.content || ''
+  const content = data.choices?.[0]?.message?.content
+  if (!content) {
+    // Check for API error
+    const baseResp = data.base_resp
+    if (baseResp && baseResp.status_code !== 0) {
+      throw new Error(`MINIMAX_FAILED:API_ERROR:${baseResp.status_msg || baseResp.status_code}`)
+    }
+  }
+  return content || ''
 }
 
 // ─── OpenAI adapter ────────────────────────────────────────────────────────
@@ -142,22 +149,21 @@ async function anthropicChat(messages: ChatMessage[]): Promise<string> {
 
 // ─── Smart LLM router with auto-fallback ───────────────────────────────────
 async function callLLM(messages: ChatMessage[]): Promise<string> {
-  const primary = process.env.AI_TEACHER_PROVIDER || 'groq'
+  const primary = process.env.AI_TEACHER_PROVIDER || 'minimax'
 
-  // Order of providers to try (primary first, then fallbacks)
+  // Try providers in priority order
   const order = [
     primary,
-    ...['groq', 'openai', 'anthropic', 'minimax'].filter(p => p !== primary),
+    ...['minimax', 'openai', 'anthropic'].filter(p => p !== primary),
   ]
 
   const adapters: Record<string, () => Promise<string>> = {
-    groq: () => groqChat(messages),
+    minimax: () => minimaxChat(messages),
     openai: () => openaiChat(messages),
     anthropic: () => anthropicChat(messages),
   }
 
   const tried: string[] = []
-  let lastError = ''
 
   for (const provider of order) {
     const adapter = adapters[provider]
@@ -166,27 +172,23 @@ async function callLLM(messages: ChatMessage[]): Promise<string> {
     try {
       const result = await adapter()
       if (result.trim()) return result
-      // Empty response — try next provider
       tried.push(provider)
-      lastError = `empty response from ${provider}`
     } catch (err: any) {
       const msg = err?.message || String(err)
-      lastError = msg
 
-      // Skip if key is not set
-      if (msg.includes('_NOT_SET')) continue
+      // Skip if key not set
+      if (msg.includes('_NOT_SET')) {
+        tried.push(provider)
+        continue
+      }
 
-      // Skip placeholder/invalid keys (case-insensitive)
+      // Skip invalid/placeholder keys (case-insensitive checks)
       const lm = msg.toLowerCase()
-      // Check status codes embedded in error messages
-      const hasInvalidKey = lm.includes('invalid') && (
-        lm.includes('api key') || lm.includes('api_key') || lm.includes('key')
-      )
-      const hasPlaceholder = lm.includes('placeholder') || lm.includes('get free key')
-      const has403or1010 = msg.includes(':403:') || msg.includes(':1010:')
-      const hasNotSet = lm.includes('_not_set') || lm.includes('not set')
+      const hasInvalidKey = lm.includes('invalid') || lm.includes('incorrect') || lm.includes('placeholder')
+      const hasAuthError = lm.includes('401') || lm.includes('403')
+      const hasApiError = lm.includes('2049') || lm.includes('api_error')
 
-      if (hasInvalidKey || hasPlaceholder || has403or1010 || hasNotSet) {
+      if (hasInvalidKey || hasAuthError || hasApiError) {
         tried.push(provider)
         continue
       }
@@ -200,8 +202,7 @@ async function callLLM(messages: ChatMessage[]): Promise<string> {
   const triedStr = tried.length ? ` (tried: ${tried.join(', ')})` : ''
   throw new Error(
     `AI teacher unavailable — no valid API key configured.${triedStr} ` +
-    `Get a FREE Groq key at https://console.groq.com/keys and add GROQ_API_KEY to Vercel env vars. ` +
-    `Free tier: 60 requests/min, llama-3.1-8b-instant model.`
+    `Set MINIMAX_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY in Vercel env vars.`
   )
 }
 
@@ -268,7 +269,7 @@ export async function chat(params: ChatParams): Promise<ToolResult> {
       data: {
         response,
         session_id: sessionId,
-        model: process.env.AI_TEACHER_PROVIDER || 'groq',
+        model: process.env.AI_TEACHER_PROVIDER || 'minimax',
       },
     }
   } catch (err: any) {
