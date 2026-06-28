@@ -176,12 +176,17 @@ async function callLLM(messages: ChatMessage[]): Promise<string> {
       // Skip if key is not set
       if (msg.includes('_NOT_SET')) continue
 
-      // Skip placeholder/invalid keys
+      // Skip placeholder/invalid keys (case-insensitive)
+      const lm = msg.toLowerCase()
       if (
-        msg.includes('Invalid API Key') ||
-        msg.includes('incorrect_api_key') ||
-        msg.includes('PLACEHOLDER') ||
-        msg.includes('2049')
+        lm.includes('invalid api key') ||
+        lm.includes('incorrect api key') ||
+        lm.includes('incorrect_api_key') ||
+        lm.includes('invalid_api_key') ||
+        lm.includes('placeholder') ||
+        msg.includes('2049') ||
+        lm.includes('key_not_set') ||
+        lm.includes('_not_set')
       ) {
         tried.push(provider)
         continue
